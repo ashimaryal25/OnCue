@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f7f8f5">
+    <title>OnCue</title>
+    <link rel="stylesheet" href="/styles.css">
+    <script src="/client.js" defer></script>
+  </head>
+  <body>
+    <div class="app">
+      <aside class="sidebar" aria-label="Workspace">
+        <a class="brand" href="/" aria-label="OnCue home"><span class="brand-mark" aria-hidden="true">O</span>OnCue</a>
+        <div class="sidebar-section">
+          <span class="sidebar-label">Workspace</span>
+          <div class="workspace-item" aria-current="page"><span aria-hidden="true">◎</span> Conversation</div>
+        </div>
+        <div class="sidebar-bottom">Guidance for the work in front of you.</div>
+      </aside>
+      <main class="main">
+        <header class="topbar">
+          <h1>Conversation</h1>
+          <button class="reset-button" id="newChatBtn" type="button">New conversation</button>
+        </header>
+        <div class="conversation" id="conversation">
+          <div class="welcome" id="welcome">
+            <h2>Ready when you are.</h2>
+            <p>Your conversation will appear here.</p>
+          </div>
+          <div class="messages" id="messages" role="log" aria-live="polite" aria-label="Conversation"></div>
+        </div>
+        <div class="composer-wrap">
+          <form class="composer" id="chatForm">
+            <label class="sr-only" for="questionInput">Ask a question</label>
+            <textarea id="questionInput" name="question" rows="1" placeholder="Ask a question…" required></textarea>
+            <button type="submit" aria-label="Send question">Send <span aria-hidden="true">↗</span></button>
+          </form>
+          <p class="composer-hint">Enter to send · Shift + Enter for a new line</p>
+        </div>
+      </main>
+    </div>
+  </body>
+</html>
