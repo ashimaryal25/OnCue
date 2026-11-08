@@ -53,4 +53,3 @@ must rotate smoothly in one direction.
 Accept: LEDs chasing in sequence, shaft rotating without hesitation.
 Reject: all four LEDs lit steadily, no LED activity, or a shaft that
 buzzes without turning.
-[VIDEO: el120-step5-verify-stepping]

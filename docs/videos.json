@@ -8,10 +8,5 @@
     "title": "Wiring the command button",
     "src": "/docs/clips/el120-step4-button-wiring.mp4",
     "step": 4
-  },
-  "el120-step5-verify-stepping": {
-    "title": "Verifying the LED chase and shaft rotation",
-    "src": "/docs/clips/el120-step5-verify-stepping.mp4",
-    "step": 5
   }
 }
