@@ -7,35 +7,63 @@
     <title>OnCue</title>
     <link rel="stylesheet" href="/styles.css">
     <script src="/client.js" defer></script>
+    <script src="/camera.js" defer></script>
+    <script src="/voice.js" defer></script>
   </head>
   <body>
     <div class="app">
-      <aside class="sidebar" aria-label="Workspace">
+      <aside class="sidebar">
         <a class="brand" href="/" aria-label="OnCue home"><span class="brand-mark" aria-hidden="true">O</span>OnCue</a>
-        <div class="sidebar-section">
-          <span class="sidebar-label">Workspace</span>
-          <div class="workspace-item" aria-current="page"><span aria-hidden="true">◎</span> Conversation</div>
+        <div class="photo-panel" id="photoPanel" hidden>
+          <span class="sidebar-label">Camera</span>
+          <div class="photo-view">
+            <video id="cameraPreview" autoplay muted playsinline hidden></video>
+          </div>
+          <span class="sidebar-label captured-label" id="capturedLabel" hidden>Captured photo</span>
+          <img class="captured-photo" id="photoPreview" alt="Photo attached to the conversation" hidden>
+          <div class="photo-actions">
+            <button id="retakePhotoBtn" type="button" hidden>Retake</button>
+            <button id="removePhotoBtn" type="button" hidden>Remove photo</button>
+          </div>
         </div>
         <div class="sidebar-bottom">Guidance for the work in front of you.</div>
       </aside>
       <main class="main">
         <header class="topbar">
           <h1>Conversation</h1>
+          <nav class="chat-modes" aria-label="Chat mode">
+            <button type="button" data-mode="training" aria-current="page">Training</button>
+            <button type="button" data-mode="general">General</button>
+          </nav>
           <button class="reset-button" id="newChatBtn" type="button">New conversation</button>
         </header>
         <div class="conversation" id="conversation">
-          <div class="welcome" id="welcome">
-            <h2>Ready when you are.</h2>
-            <p>Your conversation will appear here.</p>
+          <div id="trainingChat">
+            <div class="welcome" id="trainingWelcome">
+              <h2>Ready when you are.</h2>
+              <p>Ask about assembling the stepper motor with Arduino.</p>
+            </div>
+            <div class="messages" id="trainingMessages" role="log" aria-live="polite" aria-label="Training conversation"></div>
           </div>
-          <div class="messages" id="messages" role="log" aria-live="polite" aria-label="Conversation"></div>
+          <div id="generalChat" hidden>
+            <div class="welcome" id="generalWelcome">
+              <h2>Ask anything.</h2>
+              <p>Ask a general question or capture a photo.</p>
+            </div>
+            <div class="messages" id="generalMessages" role="log" aria-live="polite" aria-label="General conversation"></div>
+          </div>
         </div>
         <div class="composer-wrap">
           <form class="composer" id="chatForm">
             <label class="sr-only" for="questionInput">Ask a question</label>
+            <button class="mic-button" id="micBtn" type="button" aria-label="Enable voice" aria-pressed="false" title="Enable voice">
+              <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5m-4 0h8"/></svg>
+            </button>
             <textarea id="questionInput" name="question" rows="1" placeholder="Ask a question…" required></textarea>
             <button type="submit" aria-label="Send question">Send <span aria-hidden="true">↗</span></button>
           </form>
+          <p class="voice-status" id="heardSpeech" hidden></p>
+          <p class="voice-status" id="voiceStatus" role="status" aria-live="polite"></p>
           <p class="composer-hint">Enter to send · Shift + Enter for a new line</p>
         </div>
       </main>
