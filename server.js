@@ -13,6 +13,7 @@ const files = {
   '/docs/videos.json': ['docs/videos.json', 'application/json'],
 };
 const maxChatBytes = 4 * 1024 * 1024;
+let documentEmbeddingCache;
 const stopWords = new Set('a an and are as at be by can do for from how i in is it of on or should the to what when where which with you'.split(' '));
 const words = text => (text.toLowerCase().match(/[a-z0-9]+/g) || [])
   .filter(word => (word.length > 2 || /^\d+$/.test(word)) && !stopWords.has(word))
@@ -21,7 +22,12 @@ const words = text => (text.toLowerCase().match(/[a-z0-9]+/g) || [])
 function loadDocs() {
   const directory = path.join(__dirname, 'docs');
   const videos = JSON.parse(fs.readFileSync(path.join(directory, 'videos.json'), 'utf8'));
-  const sections = fs.readdirSync(directory).filter(file => file.endsWith('.md')).flatMap(file => {
+  const files = fs.readdirSync(directory).filter(file => file.endsWith('.md'));
+  const signature = files.map(file => {
+    const { mtimeMs, size } = fs.statSync(path.join(directory, file));
+    return `${file}:${mtimeMs}:${size}`;
+  }).join('|');
+  const sections = files.flatMap(file => {
     const document = fs.readFileSync(path.join(directory, file), 'utf8');
     return document.split(/^## /m).slice(1).map(section => {
       const [title, ...body] = section.trim().split('\n');
@@ -29,7 +35,7 @@ function loadDocs() {
       return { title: `${file}: ${title}`, text: body.join('\n').replace(/\[VIDEO: [^\]]+\]/g, '').trim(), video };
     });
   });
-  return { videos, sections };
+  return { videos, sections, signature };
 }
 
 // A step title is a stronger match than a word buried in its instructions.
@@ -41,6 +47,58 @@ function retrieve(question, sections) {
     const score = terms.reduce((sum, term) => sum + (heading.has(term) ? 3 : 0) + (body.has(term) ? 1 : 0), 0);
     return { ...section, score };
   }).filter(section => section.score > 0).sort((a, b) => b.score - a.score).slice(0, 3);
+}
+
+async function embedTexts(texts, taskType) {
+  if (!process.env.GEMINI_API_KEY) throw new Error('missing API key');
+  const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:batchEmbedContents', {
+    method: 'POST',
+    headers: { 'x-goog-api-key': process.env.GEMINI_API_KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ requests: texts.map(text => ({
+      model: 'models/gemini-embedding-001', content: { parts: [{ text }] }, taskType,
+    })) }),
+    signal: AbortSignal.timeout(4000),
+  });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const result = await response.json();
+  const vectors = result.embeddings?.map(embedding => embedding?.values);
+  if (!Array.isArray(vectors) || vectors.length !== texts.length ||
+      !vectors.every(vector => Array.isArray(vector) && vector.length &&
+        vector.every(value => typeof value === 'number' && Number.isFinite(value))) ||
+      vectors.some(vector => vector.length !== vectors[0].length)) {
+    throw new Error('malformed embedding response');
+  }
+  return vectors;
+}
+
+function cosine(a, b) {
+  if (a.length !== b.length) throw new Error('embedding dimension mismatch');
+  let dot = 0, aSize = 0, bSize = 0;
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i] * b[i];
+    aSize += a[i] * a[i];
+    bSize += b[i] * b[i];
+  }
+  if (!aSize || !bSize) throw new Error('zero-length embedding');
+  return dot / Math.sqrt(aSize * bSize);
+}
+
+async function semanticRetrieve(question, sections, signature) {
+  if (!documentEmbeddingCache || documentEmbeddingCache.signature !== signature) {
+    const cache = { signature };
+    cache.vectors = embedTexts(sections.map(section => `${section.title}\n${section.text}`), 'RETRIEVAL_DOCUMENT')
+      .catch(error => {
+        if (documentEmbeddingCache === cache) documentEmbeddingCache = undefined;
+        throw error;
+      });
+    documentEmbeddingCache = cache;
+  }
+  const [documents, [query]] = await Promise.all([
+    documentEmbeddingCache.vectors,
+    embedTexts([question], 'RETRIEVAL_QUERY'),
+  ]);
+  return sections.map((section, index) => ({ ...section, score: cosine(query, documents[index]) }))
+    .sort((a, b) => b.score - a.score).slice(0, 3);
 }
 
 // Only pass small JPEG photos through to Gemini.
@@ -93,9 +151,17 @@ const server = http.createServer(async (request, response) => {
       if (mode === 'training') {
         const docs = loadDocs();
         videos = docs.videos;
-        const matches = retrieve(question, docs.sections);
+        let matches, semantic = true;
+        try {
+          matches = await semanticRetrieve(question, docs.sections, docs.signature);
+        } catch (error) {
+          console.error(`Embedding retrieval failed; using keyword retrieval: ${String(error.message).replace(/\s+/g, ' ')}`);
+          matches = retrieve(question, docs.sections);
+          semantic = false;
+        }
         const topScore = matches[0]?.score || 0;
-        const evidence = jpeg || topScore < 2 ? docs.sections : matches;
+        // Cosine similarity uses a 0..1 scale; keyword scores use 0..N.
+        const evidence = jpeg || topScore < (semantic ? 0.5 : 2) ? docs.sections : matches;
         context = evidence.map(section => {
           if (section.video && videos[section.video] &&
               fs.existsSync(path.join(__dirname, 'docs', 'clips', `${section.video}.mp4`))) {
